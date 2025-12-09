@@ -1,0 +1,10 @@
+# Icons Directory
+
+Place icon PNG files here:
+- icon-16.png (16x16)
+- icon-48.png (48x48)
+- icon-128.png (128x128)
+
+See README.md in this directory for generation instructions.
+
+The extension will load with default Chrome icons if these are missing.

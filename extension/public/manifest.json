@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "MRM Research Capture",
+  "version": "0.1.0",
+  "description": "Capture research prompts, screenshots, and insights for MRM Intelligence Database",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "action": {
+    "default_title": "MRM Research Capture",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Researcher {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String      @unique
+  name      String
+  apiKey    String      @unique @map("api_key")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  captures  Capture[]
+
+  @@map("researchers")
+}
+
+model Capture {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  researcherId  String    @map("researcher_id") @db.Uuid
+  researcher    Researcher @relation(fields: [researcherId], references: [id], onDelete: Cascade)
+
+  prompt        String
+  screenshotUrl String?   @map("screenshot_url")
+  notes         String?
+
+  sector        String
+  theme         String
+  findingType   String    @map("finding_type")
+
+  sourceUrl     String?   @map("source_url")
+  sourceTabTitle String?  @map("source_tab_title")
+
+  isArchived    Boolean   @default(false) @map("is_archived")
+  confidenceLevel Int     @default(5) @map("confidence_level")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([researcherId])
+  @@index([createdAt])
+  @@index([sector])
+  @@map("captures")
+}

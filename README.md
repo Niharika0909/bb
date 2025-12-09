@@ -1,0 +1,455 @@
+# MRM Research Capture Extension
+
+> Chrome extension for capturing research workflows into MRM Intelligence Database
+
+**Status:** ✅ Production-ready for internal validation
+**Deployment Target:** 5 MRM researchers
+**Tech Stack:** React 18 + Express.js + PostgreSQL + Prisma + AWS S3
+
+---
+
+## 📋 Project Overview
+
+A Chrome extension that captures research workflows into a centralized database.
+
+### What Users Capture
+- **Prompt:** What the researcher asked/searched
+- **Screenshot:** Visual context from browser (auto-captured)
+- **Notes:** Observations and findings
+- **Tags:** Sector, Theme, Finding Type
+
+### Data Flow
+```
+Researcher → Extension → API → PostgreSQL → Intelligence Database
+```
+
+### Strategic Value
+- Builds MRM Intelligence Database (defensible moat)
+- Validates SaaS market fit for external productization
+- Enables team SOP (Directive 7)
+- Feeds recurring revenue model (8-10x exit multiple)
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- PostgreSQL 14+
+- AWS S3 account (for screenshot storage)
+- Chrome browser
+
+### 1. Backend Setup
+
+```bash
+cd backend
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your database and AWS credentials
+
+# Generate Prisma client
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate dev --name init
+
+# Seed test researchers
+npm run prisma:seed
+
+# Start API server
+npm run dev
+```
+
+The API will run on `http://localhost:3000`
+
+### 2. Extension Setup
+
+```bash
+cd extension
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env - set REACT_APP_API_URL to your API URL
+
+# Build extension
+npm run build
+```
+
+### 3. Load Extension in Chrome
+
+1. Open Chrome and navigate to `chrome://extensions`
+2. Enable **Developer mode** (toggle in top-right)
+3. Click **Load unpacked**
+4. Select the `extension/dist` folder
+5. The MRM Research Capture extension should now appear
+
+### 4. Login
+
+Use one of the test credentials from the seed script:
+
+```
+Email: pranav@mrm.io
+API Key: api_key_pranav_001
+
+Email: researcher1@mrm.io
+API Key: api_key_researcher1_001
+```
+
+---
+
+## 📦 Project Structure
+
+```
+/
+├── backend/                 # Express.js API
+│   ├── src/
+│   │   └── index.js        # Main API server with 5 endpoints
+│   ├── prisma/
+│   │   ├── schema.prisma   # Database schema
+│   │   └── seed.js         # Test researcher data
+│   ├── package.json
+│   └── .env.example
+│
+├── extension/              # React Chrome Extension
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── utils/          # API, auth, screenshot utilities
+│   │   ├── App.jsx         # Main app component
+│   │   └── index.js        # Entry point
+│   ├── public/
+│   │   ├── manifest.json   # Chrome extension manifest v3
+│   │   ├── popup.html
+│   │   └── icons/
+│   ├── background/
+│   │   └── background.js   # Service worker
+│   ├── webpack.config.js
+│   └── package.json
+│
+└── README.md               # This file
+```
+
+---
+
+## 🔌 API Endpoints
+
+### 1. POST `/api/auth/login`
+Login with email and API key, returns JWT token.
+
+**Request:**
+```json
+{
+  "email": "pranav@mrm.io",
+  "apiKey": "api_key_pranav_001"
+}
+```
+
+**Response:**
+```json
+{
+  "token": "jwt_token_here",
+  "researcher": {
+    "id": "uuid",
+    "email": "pranav@mrm.io",
+    "name": "Pranav"
+  }
+}
+```
+
+### 2. GET `/api/researcher/me`
+Get current researcher details (requires auth).
+
+### 3. POST `/api/screenshots`
+Upload screenshot to S3 (requires auth, multipart/form-data).
+
+### 4. POST `/api/captures`
+Save research capture (requires auth).
+
+**Request:**
+```json
+{
+  "prompt": "How does Stripe handle payment disputes?",
+  "screenshotUrl": "https://s3.amazonaws.com/...",
+  "notes": "Found interesting dispute resolution flow",
+  "sector": "Fintech",
+  "theme": "Customer Insight",
+  "findingType": "Finding",
+  "sourceUrl": "https://stripe.com/docs/disputes",
+  "sourceTabTitle": "Stripe Dispute Documentation"
+}
+```
+
+### 5. GET `/api/captures`
+Get researcher's captures (requires auth, returns 50 most recent).
+
+---
+
+## 🛠️ Development
+
+### Backend Development
+
+```bash
+cd backend
+
+# Run in dev mode (with auto-reload)
+npm run dev
+
+# Run migrations
+npm run prisma:migrate
+
+# Reset database and reseed
+npx prisma migrate reset
+npm run prisma:seed
+```
+
+### Extension Development
+
+```bash
+cd extension
+
+# Watch mode (auto-rebuild on changes)
+npm run dev
+
+# Build for production
+npm run build
+```
+
+After rebuilding, reload the extension in Chrome:
+1. Go to `chrome://extensions`
+2. Click the reload icon on the MRM Research Capture extension
+
+---
+
+## 🚢 Deployment
+
+### Backend Deployment (Railway.app)
+
+1. **Create Railway account:** https://railway.app
+2. **Create new project** → Connect GitHub repository
+3. **Add PostgreSQL database** (Railway plugin)
+4. **Set environment variables:**
+   ```
+   DATABASE_URL=<auto-generated by Railway>
+   JWT_SECRET=<generate with: openssl rand -hex 32>
+   NODE_ENV=production
+   AWS_S3_BUCKET=mrm-captures
+   AWS_S3_REGION=ap-south-1
+   AWS_ACCESS_KEY_ID=<your AWS key>
+   AWS_SECRET_ACCESS_KEY=<your AWS secret>
+   ```
+5. **Deploy:** Railway auto-deploys on git push
+6. **Run migrations:**
+   ```bash
+   railway run npx prisma migrate deploy
+   railway run npm run prisma:seed
+   ```
+
+### Extension Deployment
+
+1. **Update `.env` with production API URL:**
+   ```
+   REACT_APP_API_URL=https://your-api.railway.app
+   REACT_APP_ENVIRONMENT=production
+   ```
+
+2. **Build production version:**
+   ```bash
+   cd extension
+   npm run build
+   ```
+
+3. **Create distribution package:**
+   ```bash
+   cd dist
+   zip -r mrm-capture-extension.zip .
+   ```
+
+4. **Distribute to researchers:**
+   - Send `mrm-capture-extension.zip`
+   - Share installation instructions (see Quick Start section)
+   - Provide email + API key credentials
+
+---
+
+## 🔐 Environment Variables
+
+### Backend (.env)
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/mrm_captures
+JWT_SECRET=<min 32 characters, generate with openssl rand -hex 32>
+NODE_ENV=development
+API_PORT=3000
+
+# AWS S3 Configuration
+AWS_S3_BUCKET=mrm-captures
+AWS_S3_REGION=ap-south-1
+AWS_ACCESS_KEY_ID=<your AWS access key>
+AWS_SECRET_ACCESS_KEY=<your AWS secret key>
+```
+
+### Extension (.env)
+
+```env
+REACT_APP_API_URL=http://localhost:3000
+REACT_APP_ENVIRONMENT=development
+```
+
+---
+
+## 📊 Database Schema
+
+### Researchers Table
+- `id` (UUID, primary key)
+- `email` (unique)
+- `name`
+- `apiKey` (unique)
+- `createdAt`, `updatedAt`
+
+### Captures Table
+- `id` (UUID, primary key)
+- `researcherId` (foreign key)
+- `prompt` (required)
+- `screenshotUrl` (optional)
+- `notes` (optional)
+- `sector` (required)
+- `theme` (required)
+- `findingType` (required)
+- `sourceUrl`, `sourceTabTitle` (optional)
+- `isArchived` (boolean, default false)
+- `confidenceLevel` (integer 1-10, default 5)
+- `createdAt`, `updatedAt`
+
+---
+
+## ✅ Success Criteria (Week 2)
+
+- [x] Extension loads without errors
+- [x] All form fields render correctly
+- [x] Screenshot auto-captures on popup open
+- [x] Save POSTs to API successfully
+- [x] Database records created
+- [x] 5 researchers can login
+- [x] API responses <200ms
+- [x] .zip ready for distribution
+
+---
+
+## 🎯 Validation Gates (Week 3-4)
+
+**GO (Proceed to productization):**
+- 4 of 5 researchers using daily (80% adoption)
+- 5-10 captures per researcher per day
+- 70%+ of captures rated "useful"
+- Zero critical bugs
+
+**NO-GO (Pivot):**
+- <50% daily usage
+- <50% captures rated useful
+- Critical bugs blocking workflow
+
+---
+
+## 🔧 Troubleshooting
+
+### Extension won't load
+- Check that you built the extension: `npm run build` in `extension/` directory
+- Verify `dist/` folder contains `manifest.json`, `popup.html`, `popup.js`
+- Check Chrome console for errors: Right-click extension → Inspect popup
+
+### Login fails
+- Verify API is running: `curl http://localhost:3000/api/health`
+- Check credentials match seeded data
+- Review backend logs for authentication errors
+
+### Screenshot not capturing
+- Ensure extension has `activeTab` permission (check manifest.json)
+- Try clicking "Recapture" button
+- Check Chrome console for permission errors
+
+### Save fails
+- Verify all required fields are filled (Prompt, Sector, Theme, Finding Type)
+- Check network tab for API errors
+- Verify AWS S3 credentials are correct (if uploading screenshot)
+
+---
+
+## 🏗️ Architecture Decisions
+
+### Why Prisma?
+- Type-safe database access
+- Auto-generated migrations
+- Excellent PostgreSQL support
+
+### Why JWT?
+- Stateless authentication
+- 30-day token expiry (good UX for researchers)
+- No session management needed
+
+### Why AWS S3?
+- Scalable screenshot storage
+- CDN-ready for future optimization
+- Industry standard
+
+### Why Manifest v3?
+- Chrome's latest standard (v2 deprecated)
+- Required for future Chrome versions
+- Better security model
+
+---
+
+## 📝 Next Steps (Post-Validation)
+
+### If GO:
+1. External SaaS productization
+2. Public onboarding flow
+3. Analytics dashboard
+4. Search interface
+5. Export functionality
+6. Billing integration
+
+### If NO-GO:
+1. User interviews to understand friction
+2. Feature adjustment based on feedback
+3. Consider alternative capture methods
+4. Re-evaluate problem-solution fit
+
+---
+
+## 👥 Test Credentials
+
+After running `npm run prisma:seed`:
+
+| Name | Email | API Key |
+|------|-------|---------|
+| Pranav (Mr.Vision) | pranav@mrm.io | api_key_pranav_001 |
+| Researcher 1 | researcher1@mrm.io | api_key_researcher1_001 |
+| Researcher 2 | researcher2@mrm.io | api_key_researcher2_001 |
+| Researcher 3 | researcher3@mrm.io | api_key_researcher3_001 |
+| Researcher 4 | researcher4@mrm.io | api_key_researcher4_001 |
+
+---
+
+## 📄 License
+
+Internal MRM project. Not for public distribution.
+
+---
+
+## 🙋 Support
+
+For issues or questions:
+- Check troubleshooting section above
+- Review backend logs: `cd backend && npm run dev`
+- Check Chrome extension console: Right-click extension → Inspect popup
+- Contact: pranav@mrm.io
+
+---
+
+**Built with ❤️ for MyResearchMarket Intelligence Database**
