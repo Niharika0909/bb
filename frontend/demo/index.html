@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MRM Platform - Interactive Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .sidebar-link { transition: all 0.2s; }
+    .sidebar-link:hover { background-color: rgba(79, 70, 229, 0.1); }
+    .sidebar-link.active { background-color: rgba(79, 70, 229, 0.15); color: #4F46E5; border-right: 3px solid #4F46E5; }
+    .card { background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; transition: all 0.2s; cursor: pointer; }
+    .btn-primary { background: #4F46E5; color: white; }
+    .btn-primary:hover { background: #4338CA; }
+    .btn-secondary { background: #F3F4F6; color: #374151; border: 1px solid #E5E7EB; }
+    .btn-secondary:hover { background: #E5E7EB; }
+    .input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; }
+    .input:focus { outline: none; border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .tab-btn { padding: 0.5rem 1rem; border-bottom: 2px solid transparent; color: #6B7280; }
+    .tab-btn.active { border-color: #4F46E5; color: #4F46E5; }
+    .tab-btn:hover { color: #374151; }
+    .progress-bar { height: 0.5rem; background: #E5E7EB; border-radius: 9999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #4F46E5; transition: width 0.5s; }
+    .heatmap-cell { transition: all 0.2s; cursor: pointer; }
+    .heatmap-cell:hover { transform: scale(1.05); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .slide-in { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .notification-badge { position: absolute; top: -4px; right: -4px; background: #EF4444; color: white; font-size: 0.625rem; padding: 0.125rem 0.375rem; border-radius: 9999px; }
+    .dropdown { position: relative; }
+    .dropdown-menu { position: absolute; right: 0; top: 100%; background: white; border-radius: 0.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.15); min-width: 200px; z-index: 50; display: none; }
+    .dropdown-menu.show { display: block; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: white; border-radius: 0.75rem; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .toast { position: fixed; bottom: 1rem; right: 1rem; background: #1F2937; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; z-index: 200; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <!-- Login Screen -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700">
+    <div class="card p-8 w-full max-w-md fade-in">
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">MRM Platform</h1>
+        <p class="text-gray-500 mt-1">Model Risk Management System</p>
+      </div>
+      <form onsubmit="handleLogin(event)">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input type="email" id="loginEmail" class="input" value="admin@example.com" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <input type="password" id="loginPassword" class="input" value="password123" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Login As Role</label>
+          <select id="loginRole" class="input">
+            <option value="ADMIN">Administrator</option>
+            <option value="EXECUTIVE">Executive</option>
+            <option value="RISK_MANAGER">Risk Manager</option>
+            <option value="MODEL_VALIDATOR">Model Validator</option>
+            <option value="MODEL_DEVELOPER">Model Developer</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-full py-3">Sign In</button>
+      </form>
+      <p class="text-center text-sm text-gray-500 mt-6">Demo: Select any role and click Sign In</p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="mainApp" class="hidden">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-40">
+      <div class="p-4 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="font-bold text-gray-900">MRM Platform</h1>
+            <p class="text-xs text-gray-500">v2.0.0</p>
+          </div>
+        </div>
+      </div>
+      <nav class="p-4" id="sidebarNav">
+        <!-- Navigation items will be populated by JS based on role -->
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="ml-64">
+      <!-- Header -->
+      <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div class="flex items-center justify-between px-6 py-4">
+          <div>
+            <h2 id="pageTitle" class="text-xl font-semibold text-gray-900">Dashboard</h2>
+            <p id="pageSubtitle" class="text-sm text-gray-500">Welcome back</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <!-- Search -->
+            <div class="relative">
+              <input type="text" placeholder="Search..." class="input pl-10 w-64">
+              <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+            <!-- Notifications -->
+            <button class="relative p-2 text-gray-400 hover:text-gray-600" onclick="showNotifications()">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+              </svg>
+              <span class="notification-badge">5</span>
+            </button>
+            <!-- User Menu -->
+            <div class="dropdown">
+              <button class="flex items-center gap-2" onclick="toggleDropdown(this)">
+                <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <span id="userInitials" class="text-sm font-medium text-indigo-600">JD</span>
+                </div>
+                <span id="userName" class="text-sm font-medium text-gray-700">John Doe</span>
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div class="dropdown-menu">
+                <div class="p-3 border-b border-gray-100">
+                  <p class="font-medium text-gray-900" id="dropdownName">John Doe</p>
+                  <p class="text-sm text-gray-500" id="dropdownRole">Administrator</p>
+                </div>
+                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onclick="navigateTo('profile')">Profile Settings</a>
+                <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-50" onclick="logout()">Sign Out</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <main class="p-6" id="pageContent">
+        <!-- Content will be loaded dynamically -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer"></div>
+
+  <!-- Modal Container -->
+  <div id="modalContainer"></div>
+
+  <script>
+    // App State
+    let currentUser = null;
+    let currentPage = 'dashboard';
+
+    // Sample Data
+    const sampleModels = [
+      { id: 1, modelId: 'MDL-2024-A1B2C3', name: 'Credit Risk Scorecard', status: 'IN_PRODUCTION', tier: 'TIER_1_CRITICAL', type: 'CREDIT_RISK', owner: 'John Smith', businessUnit: 'Risk Management', findings: 3 },
+      { id: 2, modelId: 'MDL-2024-D4E5F6', name: 'Fraud Detection ML', status: 'IN_VALIDATION', tier: 'TIER_2_HIGH', type: 'FRAUD_DETECTION', owner: 'Jane Doe', businessUnit: 'Compliance', findings: 1 },
+      { id: 3, modelId: 'MDL-2024-G7H8I9', name: 'Market VaR Model', status: 'PENDING_VALIDATION', tier: 'TIER_1_CRITICAL', type: 'MARKET_RISK', owner: 'Mike Johnson', businessUnit: 'Trading', findings: 5 },
+      { id: 4, modelId: 'MDL-2024-J1K2L3', name: 'AML Transaction Monitor', status: 'APPROVED', tier: 'TIER_2_HIGH', type: 'AML_KYC', owner: 'Sarah Wilson', businessUnit: 'Compliance', findings: 0 },
+      { id: 5, modelId: 'MDL-2024-M4N5O6', name: 'LGD Estimation Model', status: 'UNDER_DEVELOPMENT', tier: 'TIER_3_MEDIUM', type: 'CREDIT_RISK', owner: 'Tom Brown', businessUnit: 'Risk Management', findings: 2 },
+    ];
+
+    const sampleFindings = [
+      { id: 1, findingId: 'FND-2024-001', title: 'Model calibration drift detected', severity: 'HIGH', status: 'OPEN', model: 'Credit Risk Scorecard', dueDate: '2024-02-15' },
+      { id: 2, findingId: 'FND-2024-002', title: 'Documentation gaps in methodology', severity: 'MEDIUM', status: 'IN_PROGRESS', model: 'Market VaR Model', dueDate: '2024-02-20' },
+      { id: 3, findingId: 'FND-2024-003', title: 'Data quality issues in training set', severity: 'CRITICAL', status: 'OPEN', model: 'Fraud Detection ML', dueDate: '2024-02-10' },
+      { id: 4, findingId: 'FND-2024-004', title: 'Missing backtesting results', severity: 'HIGH', status: 'REMEDIATED', model: 'LGD Estimation Model', dueDate: '2024-01-30' },
+    ];
+
+    const sampleValidations = [
+      { id: 1, validationId: 'VAL-2024-001', model: 'Credit Risk Scorecard', type: 'ANNUAL', status: 'IN_PROGRESS', validator: 'Alice Chen', progress: 65, dueDate: '2024-03-01' },
+      { id: 2, validationId: 'VAL-2024-002', model: 'Market VaR Model', type: 'INITIAL', status: 'NOT_STARTED', validator: 'Bob Miller', progress: 0, dueDate: '2024-03-15' },
+      { id: 3, validationId: 'VAL-2024-003', model: 'Fraud Detection ML', type: 'MATERIAL_CHANGE', status: 'PENDING_REVIEW', validator: 'Carol White', progress: 100, dueDate: '2024-02-28' },
+    ];
+
+    const sampleTasks = [
+      { id: 1, taskId: 'TSK-001', title: 'Review model documentation', priority: 'HIGH', status: 'IN_PROGRESS', assignee: 'You', dueDate: '2024-02-12' },
+      { id: 2, taskId: 'TSK-002', title: 'Complete validation checklist', priority: 'CRITICAL', status: 'PENDING', assignee: 'You', dueDate: '2024-02-10' },
+      { id: 3, taskId: 'TSK-003', title: 'Prepare executive summary', priority: 'MEDIUM', status: 'PENDING', assignee: 'You', dueDate: '2024-02-18' },
+    ];
+
+    // Navigation Config by Role
+    const navConfig = {
+      ADMIN: [
+        { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+        { id: 'models', label: 'Model Inventory', icon: 'cube' },
+        { id: 'validations', label: 'Validations', icon: 'clipboard-check' },
+        { id: 'findings', label: 'Findings', icon: 'exclamation' },
+        { id: 'risks', label: 'Risk Assessments', icon: 'chart-bar' },
+        { id: 'workflows', label: 'Workflows', icon: 'workflow' },
+        { id: 'tasks', label: 'Tasks', icon: 'tasks' },
+        { id: 'users', label: 'User Management', icon: 'users' },
+        { id: 'reports', label: 'Reports', icon: 'document' },
+      ],
+      EXECUTIVE: [
+        { id: 'dashboard', label: 'Executive Dashboard', icon: 'home' },
+        { id: 'models', label: 'Model Inventory', icon: 'cube' },
+        { id: 'risks', label: 'Risk Overview', icon: 'chart-bar' },
+        { id: 'reports', label: 'Reports', icon: 'document' },
+      ],
+      RISK_MANAGER: [
+        { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+        { id: 'models', label: 'Model Inventory', icon: 'cube' },
+        { id: 'validations', label: 'Validations', icon: 'clipboard-check' },
+        { id: 'findings', label: 'Findings', icon: 'exclamation' },
+        { id: 'risks', label: 'Risk Assessments', icon: 'chart-bar' },
+        { id: 'workflows', label: 'Approvals', icon: 'workflow' },
+        { id: 'reports', label: 'Reports', icon: 'document' },
+      ],
+      MODEL_VALIDATOR: [
+        { id: 'dashboard', label: 'My Dashboard', icon: 'home' },
+        { id: 'models', label: 'Models', icon: 'cube' },
+        { id: 'validations', label: 'My Validations', icon: 'clipboard-check' },
+        { id: 'findings', label: 'Findings', icon: 'exclamation' },
+        { id: 'tasks', label: 'My Tasks', icon: 'tasks' },
+      ],
+      MODEL_DEVELOPER: [
+        { id: 'dashboard', label: 'My Dashboard', icon: 'home' },
+        { id: 'models', label: 'My Models', icon: 'cube' },
+        { id: 'findings', label: 'My Findings', icon: 'exclamation' },
+        { id: 'tasks', label: 'My Tasks', icon: 'tasks' },
+      ],
+    };
+
+    // Icons
+    const icons = {
+      home: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>',
+      cube: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>',
+      'clipboard-check': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>',
+      exclamation: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>',
+      'chart-bar': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>',
+      workflow: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>',
+      tasks: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>',
+      users: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>',
+      document: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>',
+    };
+
+    // Login Handler
+    function handleLogin(e) {
+      e.preventDefault();
+      const role = document.getElementById('loginRole').value;
+      const roleNames = {
+        ADMIN: 'Administrator',
+        EXECUTIVE: 'Executive',
+        RISK_MANAGER: 'Risk Manager',
+        MODEL_VALIDATOR: 'Model Validator',
+        MODEL_DEVELOPER: 'Model Developer'
+      };
+      currentUser = {
+        name: 'John Doe',
+        email: document.getElementById('loginEmail').value,
+        role: role,
+        roleName: roleNames[role],
+        initials: 'JD'
+      };
+
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainApp').classList.remove('hidden');
+
+      updateUserDisplay();
+      buildNavigation();
+      navigateTo('dashboard');
+      showToast('Welcome back, ' + currentUser.name + '!', 'success');
+    }
+
+    // Update User Display
+    function updateUserDisplay() {
+      document.getElementById('userInitials').textContent = currentUser.initials;
+      document.getElementById('userName').textContent = currentUser.name;
+      document.getElementById('dropdownName').textContent = currentUser.name;
+      document.getElementById('dropdownRole').textContent = currentUser.roleName;
+    }
+
+    // Build Navigation
+    function buildNavigation() {
+      const nav = document.getElementById('sidebarNav');
+      const items = navConfig[currentUser.role] || navConfig.MODEL_DEVELOPER;
+
+      nav.innerHTML = items.map(item => `
+        <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 ${item.id === currentPage ? 'active' : ''}"
+           onclick="navigateTo('${item.id}'); return false;">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[item.icon]}</svg>
+          <span>${item.label}</span>
+        </a>
+      `).join('');
+    }
+
+    // Navigate
+    function navigateTo(page) {
+      currentPage = page;
+      buildNavigation();
+
+      const titles = {
+        dashboard: { title: 'Dashboard', subtitle: 'Welcome back, ' + currentUser.name },
+        models: { title: 'Model Inventory', subtitle: 'Manage and monitor all models' },
+        validations: { title: 'Validations', subtitle: 'Track validation activities' },
+        findings: { title: 'Findings & Issues', subtitle: 'Track and remediate findings' },
+        risks: { title: 'Risk Assessments', subtitle: 'Model risk scoring and heatmap' },
+        workflows: { title: 'Approval Workflows', subtitle: 'Manage approval processes' },
+        tasks: { title: 'Tasks', subtitle: 'Your assigned tasks' },
+        users: { title: 'User Management', subtitle: 'Manage user accounts' },
+        reports: { title: 'Reports & Analytics', subtitle: 'Generate and view reports' },
+        profile: { title: 'Profile Settings', subtitle: 'Manage your account' },
+      };
+
+      const info = titles[page] || { title: page, subtitle: '' };
+      document.getElementById('pageTitle').textContent = info.title;
+      document.getElementById('pageSubtitle').textContent = info.subtitle;
+
+      renderPage(page);
+    }
+
+    // Render Page Content
+    function renderPage(page) {
+      const content = document.getElementById('pageContent');
+      content.innerHTML = '';
+      content.classList.add('fade-in');
+
+      switch(page) {
+        case 'dashboard': renderDashboard(content); break;
+        case 'models': renderModels(content); break;
+        case 'validations': renderValidations(content); break;
+        case 'findings': renderFindings(content); break;
+        case 'risks': renderRisks(content); break;
+        case 'workflows': renderWorkflows(content); break;
+        case 'tasks': renderTasks(content); break;
+        case 'users': renderUsers(content); break;
+        case 'reports': renderReports(content); break;
+        case 'profile': renderProfile(content); break;
+      }
+    }
+
+    // Dashboard Page
+    function renderDashboard(container) {
+      container.innerHTML = `
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-500">Total Models</p>
+                <p class="text-3xl font-bold text-gray-900">47</p>
+                <p class="text-sm text-green-600 mt-1">+3 this month</p>
+              </div>
+              <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.cube}</svg>
+              </div>
+            </div>
+          </div>
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-500">Active Validations</p>
+                <p class="text-3xl font-bold text-blue-600">12</p>
+                <p class="text-sm text-gray-500 mt-1">5 due this week</p>
+              </div>
+              <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons['clipboard-check']}</svg>
+              </div>
+            </div>
+          </div>
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-500">Open Findings</p>
+                <p class="text-3xl font-bold text-red-600">23</p>
+                <p class="text-sm text-red-600 mt-1">4 critical</p>
+              </div>
+              <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.exclamation}</svg>
+              </div>
+            </div>
+          </div>
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-500">Pending Approvals</p>
+                <p class="text-3xl font-bold text-yellow-600">8</p>
+                <p class="text-sm text-gray-500 mt-1">Awaiting review</p>
+              </div>
+              <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.workflow}</svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Chart -->
+          <div class="lg:col-span-2 card p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Model Status Overview</h3>
+            <canvas id="statusChart" height="200"></canvas>
+          </div>
+
+          <!-- My Tasks -->
+          <div class="card p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900">My Tasks</h3>
+              <a href="#" onclick="navigateTo('tasks'); return false;" class="text-sm text-indigo-600 hover:text-indigo-800">View All</a>
+            </div>
+            <div class="space-y-3">
+              ${sampleTasks.map(task => `
+                <div class="p-3 bg-gray-50 rounded-lg">
+                  <div class="flex items-center justify-between">
+                    <span class="font-medium text-gray-900 text-sm">${task.title}</span>
+                    <span class="badge ${task.priority === 'CRITICAL' ? 'bg-red-100 text-red-800' : task.priority === 'HIGH' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}">${task.priority}</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">Due: ${task.dueDate}</p>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card p-6 mt-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Models</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="text-left text-sm text-gray-500 border-b">
+                  <th class="pb-3 font-medium">Model ID</th>
+                  <th class="pb-3 font-medium">Name</th>
+                  <th class="pb-3 font-medium">Status</th>
+                  <th class="pb-3 font-medium">Tier</th>
+                  <th class="pb-3 font-medium">Owner</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sampleModels.slice(0, 3).map(model => `
+                  <tr class="border-b last:border-0 hover:bg-gray-50 cursor-pointer" onclick="showModelDetail(${model.id})">
+                    <td class="py-3 text-indigo-600 font-medium">${model.modelId}</td>
+                    <td class="py-3 font-medium text-gray-900">${model.name}</td>
+                    <td class="py-3"><span class="badge ${getStatusColor(model.status)}">${model.status.replace(/_/g, ' ')}</span></td>
+                    <td class="py-3"><span class="badge ${getTierColor(model.tier)}">${model.tier.replace('TIER_', 'T').replace('_CRITICAL', '').replace('_HIGH', '').replace('_MEDIUM', '').replace('_LOW', '')}</span></td>
+                    <td class="py-3 text-gray-500">${model.owner}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      // Render Chart
+      setTimeout(() => {
+        const ctx = document.getElementById('statusChart');
+        if (ctx) {
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: ['In Production', 'In Validation', 'Pending', 'Development', 'Retired'],
+              datasets: [{
+                label: 'Models',
+                data: [18, 12, 8, 6, 3],
+                backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#6B7280']
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true } }
+            }
+          });
+        }
+      }, 100);
+    }
+
+    // Models Page
+    function renderModels(container) {
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex gap-4">
+            <input type="text" placeholder="Search models..." class="input w-64" oninput="filterModels(this.value)">
+            <select class="input w-40" onchange="filterByStatus(this.value)">
+              <option value="">All Statuses</option>
+              <option value="IN_PRODUCTION">In Production</option>
+              <option value="IN_VALIDATION">In Validation</option>
+              <option value="PENDING_VALIDATION">Pending Validation</option>
+              <option value="UNDER_DEVELOPMENT">Under Development</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="showNewModelModal()">
+            <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Model
+          </button>
+        </div>
+
+        <div class="card overflow-hidden">
+          <table class="w-full" id="modelsTable">
+            <thead class="bg-gray-50">
+              <tr class="text-left text-sm text-gray-500">
+                <th class="px-6 py-3 font-medium">Model ID</th>
+                <th class="px-6 py-3 font-medium">Name</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium">Tier</th>
+                <th class="px-6 py-3 font-medium">Type</th>
+                <th class="px-6 py-3 font-medium">Owner</th>
+                <th class="px-6 py-3 font-medium">Findings</th>
+              </tr>
+            </thead>
+            <tbody id="modelsTableBody">
+              ${renderModelsTable(sampleModels)}
+            </tbody>
+          </table>
+          <div class="flex items-center justify-between px-6 py-3 border-t">
+            <span class="text-sm text-gray-500">Showing 1-5 of 47 results</span>
+            <div class="flex gap-2">
+              <button class="btn btn-secondary text-sm">Previous</button>
+              <button class="btn btn-secondary text-sm">Next</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderModelsTable(models) {
+      return models.map(model => `
+        <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="showModelDetail(${model.id})">
+          <td class="px-6 py-4 text-indigo-600 font-medium">${model.modelId}</td>
+          <td class="px-6 py-4 font-medium text-gray-900">${model.name}</td>
+          <td class="px-6 py-4"><span class="badge ${getStatusColor(model.status)}">${model.status.replace(/_/g, ' ')}</span></td>
+          <td class="px-6 py-4"><span class="badge ${getTierColor(model.tier)}">${model.tier.replace('TIER_', 'Tier ').replace('_CRITICAL', '').replace('_HIGH', '').replace('_MEDIUM', '').replace('_LOW', '')}</span></td>
+          <td class="px-6 py-4 text-gray-500">${model.type.replace(/_/g, ' ')}</td>
+          <td class="px-6 py-4 text-gray-500">${model.owner}</td>
+          <td class="px-6 py-4 text-gray-500">${model.findings}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Findings Page
+    function renderFindings(container) {
+      container.innerHTML = `
+        <div class="grid grid-cols-4 gap-4 mb-6">
+          <div class="card p-4 border-l-4 border-red-500">
+            <div class="text-2xl font-bold text-red-600">4</div>
+            <div class="text-sm text-gray-500">Critical Open</div>
+          </div>
+          <div class="card p-4 border-l-4 border-orange-500">
+            <div class="text-2xl font-bold text-orange-600">8</div>
+            <div class="text-sm text-gray-500">High Open</div>
+          </div>
+          <div class="card p-4 border-l-4 border-yellow-500">
+            <div class="text-2xl font-bold text-yellow-600">11</div>
+            <div class="text-sm text-gray-500">Medium Open</div>
+          </div>
+          <div class="card p-4 border-l-4 border-green-500">
+            <div class="text-2xl font-bold text-green-600">15</div>
+            <div class="text-sm text-gray-500">Remediated</div>
+          </div>
+        </div>
+
+        <div class="card overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr class="text-left text-sm text-gray-500">
+                <th class="px-6 py-3 font-medium">Finding ID</th>
+                <th class="px-6 py-3 font-medium">Title</th>
+                <th class="px-6 py-3 font-medium">Model</th>
+                <th class="px-6 py-3 font-medium">Severity</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium">Due Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sampleFindings.map(f => `
+                <tr class="border-b hover:bg-gray-50 cursor-pointer ${isOverdue(f.dueDate) && f.status === 'OPEN' ? 'bg-red-50' : ''}" onclick="showFindingDetail(${f.id})">
+                  <td class="px-6 py-4 text-indigo-600 font-medium">${f.findingId}</td>
+                  <td class="px-6 py-4 font-medium text-gray-900">${f.title}</td>
+                  <td class="px-6 py-4 text-gray-500">${f.model}</td>
+                  <td class="px-6 py-4"><span class="badge ${getSeverityColor(f.severity)}">${f.severity}</span></td>
+                  <td class="px-6 py-4"><span class="badge ${getStatusColor(f.status)}">${f.status.replace(/_/g, ' ')}</span></td>
+                  <td class="px-6 py-4 ${isOverdue(f.dueDate) ? 'text-red-600 font-medium' : 'text-gray-500'}">${f.dueDate}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // Validations Page
+    function renderValidations(container) {
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex gap-4">
+            <select class="input w-40">
+              <option value="">All Statuses</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="PENDING_REVIEW">Pending Review</option>
+              <option value="APPROVED">Approved</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="showToast('New validation wizard coming soon!', 'info')">
+            <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Validation
+          </button>
+        </div>
+
+        <div class="card overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr class="text-left text-sm text-gray-500">
+                <th class="px-6 py-3 font-medium">Validation ID</th>
+                <th class="px-6 py-3 font-medium">Model</th>
+                <th class="px-6 py-3 font-medium">Type</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium">Validator</th>
+                <th class="px-6 py-3 font-medium">Progress</th>
+                <th class="px-6 py-3 font-medium">Due Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sampleValidations.map(v => `
+                <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="showValidationDetail(${v.id})">
+                  <td class="px-6 py-4 text-indigo-600 font-medium">${v.validationId}</td>
+                  <td class="px-6 py-4 font-medium text-gray-900">${v.model}</td>
+                  <td class="px-6 py-4 text-gray-500">${v.type.replace(/_/g, ' ')}</td>
+                  <td class="px-6 py-4"><span class="badge ${getStatusColor(v.status)}">${v.status.replace(/_/g, ' ')}</span></td>
+                  <td class="px-6 py-4 text-gray-500">${v.validator}</td>
+                  <td class="px-6 py-4">
+                    <div class="flex items-center gap-2">
+                      <div class="progress-bar flex-1"><div class="progress-fill" style="width: ${v.progress}%"></div></div>
+                      <span class="text-sm text-gray-500">${v.progress}%</span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-gray-500">${v.dueDate}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // Risk Assessments Page with Heatmap
+    function renderRisks(container) {
+      container.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 card p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-6">Risk Heatmap</h3>
+            <div class="flex">
+              <div class="flex items-center justify-center w-12">
+                <span class="-rotate-90 whitespace-nowrap text-sm font-medium text-gray-600">Impact</span>
+              </div>
+              <div class="flex-1">
+                <div class="grid grid-cols-4 gap-2 mb-2">
+                  <div class="text-center text-xs text-gray-500">Critical</div>
+                  <div class="text-center text-xs text-gray-500">High</div>
+                  <div class="text-center text-xs text-gray-500">Medium</div>
+                  <div class="text-center text-xs text-gray-500">Low</div>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                  ${['Very Likely', 'Likely', 'Possible', 'Unlikely'].map(likelihood =>
+                    ['Critical', 'High', 'Medium', 'Low'].map(impact => {
+                      const score = getHeatmapScore(impact, likelihood);
+                      const count = Math.floor(Math.random() * 8);
+                      return `<div class="heatmap-cell h-20 rounded-lg flex flex-col items-center justify-center text-white font-semibold ${getHeatmapColor(score)}" onclick="showHeatmapCell('${impact}', '${likelihood}', ${count})">
+                        <span class="text-2xl">${count}</span>
+                        <span class="text-xs opacity-80">models</span>
+                      </div>`;
+                    }).join('')
+                  ).join('')}
+                </div>
+                <div class="grid grid-cols-4 gap-2 mt-2">
+                  <div class="text-center text-xs text-gray-500">Very Likely</div>
+                  <div class="text-center text-xs text-gray-500">Likely</div>
+                  <div class="text-center text-xs text-gray-500">Possible</div>
+                  <div class="text-center text-xs text-gray-500">Unlikely</div>
+                </div>
+                <div class="text-center text-sm font-medium text-gray-600 mt-2">Likelihood</div>
+              </div>
+            </div>
+            <div class="flex justify-center gap-4 mt-6">
+              <div class="flex items-center gap-2"><div class="w-4 h-4 bg-red-500 rounded"></div><span class="text-sm text-gray-600">Critical</span></div>
+              <div class="flex items-center gap-2"><div class="w-4 h-4 bg-orange-500 rounded"></div><span class="text-sm text-gray-600">High</span></div>
+              <div class="flex items-center gap-2"><div class="w-4 h-4 bg-yellow-500 rounded"></div><span class="text-sm text-gray-600">Medium</span></div>
+              <div class="flex items-center gap-2"><div class="w-4 h-4 bg-green-500 rounded"></div><span class="text-sm text-gray-600">Low</span></div>
+            </div>
+          </div>
+          <div class="card p-6" id="heatmapDetails">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Cell Details</h3>
+            <p class="text-gray-500">Click on a heatmap cell to see models in that risk category</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-4 gap-4 mt-6">
+          <div class="card p-4 border-l-4 border-red-500">
+            <div class="text-2xl font-bold text-red-600">8</div>
+            <div class="text-sm text-gray-500">Critical Risk Models</div>
+          </div>
+          <div class="card p-4 border-l-4 border-orange-500">
+            <div class="text-2xl font-bold text-orange-600">14</div>
+            <div class="text-sm text-gray-500">High Risk Models</div>
+          </div>
+          <div class="card p-4 border-l-4 border-yellow-500">
+            <div class="text-2xl font-bold text-yellow-600">18</div>
+            <div class="text-sm text-gray-500">Medium Risk Models</div>
+          </div>
+          <div class="card p-4 border-l-4 border-green-500">
+            <div class="text-2xl font-bold text-green-600">7</div>
+            <div class="text-sm text-gray-500">Low Risk Models</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Workflows Page
+    function renderWorkflows(container) {
+      container.innerHTML = `
+        <div class="grid grid-cols-4 gap-4 mb-6">
+          <div class="card p-4"><div class="text-2xl font-bold text-yellow-600">3</div><div class="text-sm text-gray-500">Pending</div></div>
+          <div class="card p-4"><div class="text-2xl font-bold text-blue-600">5</div><div class="text-sm text-gray-500">In Progress</div></div>
+          <div class="card p-4"><div class="text-2xl font-bold text-green-600">28</div><div class="text-sm text-gray-500">Approved</div></div>
+          <div class="card p-4"><div class="text-2xl font-bold text-red-600">2</div><div class="text-sm text-gray-500">Rejected</div></div>
+        </div>
+
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Pending Approvals</h3>
+          <div class="space-y-4">
+            ${[
+              { id: 'WF-001', type: 'Model Approval', entity: 'Credit Risk Scorecard', step: 'Risk Manager Review', status: 'PENDING' },
+              { id: 'WF-002', type: 'Validation Approval', entity: 'VAL-2024-003', step: 'Final Approval', status: 'IN_PROGRESS' },
+              { id: 'WF-003', type: 'Finding Closure', entity: 'FND-2024-004', step: 'Validator Review', status: 'PENDING' },
+            ].map(wf => `
+              <div class="p-4 border rounded-lg hover:border-indigo-300 transition-colors cursor-pointer" onclick="showWorkflowDetail('${wf.id}')">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="font-medium text-indigo-600">${wf.id}</span>
+                      <span class="badge ${wf.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">${wf.status}</span>
+                    </div>
+                    <p class="text-gray-900 font-medium mt-1">${wf.type}</p>
+                    <p class="text-sm text-gray-500">${wf.entity} • Current: ${wf.step}</p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button class="btn btn-primary text-sm" onclick="event.stopPropagation(); approveWorkflow('${wf.id}')">Approve</button>
+                    <button class="btn btn-secondary text-sm" onclick="event.stopPropagation(); rejectWorkflow('${wf.id}')">Reject</button>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Tasks Page
+    function renderTasks(container) {
+      container.innerHTML = `
+        <div class="grid grid-cols-4 gap-4 mb-6">
+          <div class="card p-4 flex items-center gap-3">
+            <div class="p-2 bg-gray-100 rounded-lg"><svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.tasks}</svg></div>
+            <div><div class="text-2xl font-bold text-gray-900">8</div><div class="text-sm text-gray-500">Pending</div></div>
+          </div>
+          <div class="card p-4 flex items-center gap-3">
+            <div class="p-2 bg-blue-100 rounded-lg"><svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.tasks}</svg></div>
+            <div><div class="text-2xl font-bold text-blue-600">5</div><div class="text-sm text-gray-500">In Progress</div></div>
+          </div>
+          <div class="card p-4 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-lg"><svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.tasks}</svg></div>
+            <div><div class="text-2xl font-bold text-green-600">24</div><div class="text-sm text-gray-500">Completed</div></div>
+          </div>
+          <div class="card p-4 flex items-center gap-3">
+            <div class="p-2 bg-red-100 rounded-lg"><svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.exclamation}</svg></div>
+            <div><div class="text-2xl font-bold text-red-600">2</div><div class="text-sm text-gray-500">Overdue</div></div>
+          </div>
+        </div>
+
+        <div class="card overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr class="text-left text-sm text-gray-500">
+                <th class="px-6 py-3 font-medium">Task ID</th>
+                <th class="px-6 py-3 font-medium">Title</th>
+                <th class="px-6 py-3 font-medium">Priority</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium">Due Date</th>
+                <th class="px-6 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sampleTasks.map(task => `
+                <tr class="border-b hover:bg-gray-50">
+                  <td class="px-6 py-4 text-indigo-600 font-medium">${task.taskId}</td>
+                  <td class="px-6 py-4 font-medium text-gray-900">${task.title}</td>
+                  <td class="px-6 py-4"><span class="badge ${task.priority === 'CRITICAL' ? 'bg-red-100 text-red-800' : task.priority === 'HIGH' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}">${task.priority}</span></td>
+                  <td class="px-6 py-4"><span class="badge ${task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">${task.status.replace(/_/g, ' ')}</span></td>
+                  <td class="px-6 py-4 text-gray-500">${task.dueDate}</td>
+                  <td class="px-6 py-4">
+                    <select class="input text-sm py-1" onchange="updateTaskStatus('${task.taskId}', this.value)">
+                      <option ${task.status === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                      <option ${task.status === 'IN_PROGRESS' ? 'selected' : ''}>IN_PROGRESS</option>
+                      <option ${task.status === 'COMPLETED' ? 'selected' : ''}>COMPLETED</option>
+                    </select>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // Users Page
+    function renderUsers(container) {
+      const users = [
+        { id: 1, name: 'John Doe', email: 'john@example.com', role: 'ADMIN', department: 'IT', status: true },
+        { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'RISK_MANAGER', department: 'Risk', status: true },
+        { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'MODEL_VALIDATOR', department: 'Validation', status: true },
+        { id: 4, name: 'Alice Chen', email: 'alice@example.com', role: 'MODEL_DEVELOPER', department: 'Analytics', status: false },
+      ];
+
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-6">
+          <input type="text" placeholder="Search users..." class="input w-64">
+          <button class="btn btn-primary" onclick="showToast('User creation coming soon!', 'info')">
+            <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Add User
+          </button>
+        </div>
+
+        <div class="card overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr class="text-left text-sm text-gray-500">
+                <th class="px-6 py-3 font-medium">User</th>
+                <th class="px-6 py-3 font-medium">Email</th>
+                <th class="px-6 py-3 font-medium">Role</th>
+                <th class="px-6 py-3 font-medium">Department</th>
+                <th class="px-6 py-3 font-medium">Status</th>
+                <th class="px-6 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.map(u => `
+                <tr class="border-b hover:bg-gray-50">
+                  <td class="px-6 py-4">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                        <span class="text-sm font-medium text-indigo-600">${u.name.split(' ').map(n => n[0]).join('')}</span>
+                      </div>
+                      <span class="font-medium text-gray-900">${u.name}</span>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4 text-gray-500">${u.email}</td>
+                  <td class="px-6 py-4"><span class="badge bg-indigo-100 text-indigo-800">${u.role.replace(/_/g, ' ')}</span></td>
+                  <td class="px-6 py-4 text-gray-500">${u.department}</td>
+                  <td class="px-6 py-4"><span class="badge ${u.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${u.status ? 'Active' : 'Inactive'}</span></td>
+                  <td class="px-6 py-4">
+                    <button class="text-indigo-600 hover:text-indigo-800 text-sm mr-3">Edit</button>
+                    <button class="text-red-600 hover:text-red-800 text-sm">${u.status ? 'Deactivate' : 'Activate'}</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    // Reports Page
+    function renderReports(container) {
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex gap-4">
+            <select class="input w-40">
+              <option>Model Inventory</option>
+              <option>Validation Status</option>
+              <option>Findings Analysis</option>
+              <option>Risk Overview</option>
+            </select>
+            <select class="input w-40">
+              <option>Last Quarter</option>
+              <option>Last Month</option>
+              <option>Last Year</option>
+              <option>All Time</option>
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary" onclick="showToast('PDF export initiated', 'success')">Export PDF</button>
+            <button class="btn btn-secondary" onclick="showToast('Excel export initiated', 'success')">Export Excel</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 mb-6">
+          <div class="card p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Models by Status</h3>
+            <canvas id="pieChart" height="200"></canvas>
+          </div>
+          <div class="card p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Findings Trend</h3>
+            <canvas id="lineChart" height="200"></canvas>
+          </div>
+        </div>
+
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Standard Reports</h3>
+          <div class="grid grid-cols-3 gap-4">
+            ${[
+              { title: 'Model Inventory Report', desc: 'Complete list of all models', icon: 'cube', color: 'indigo' },
+              { title: 'Validation Summary', desc: 'Validation completion rates', icon: 'clipboard-check', color: 'green' },
+              { title: 'Risk Assessment', desc: 'Risk scores and heatmap', icon: 'chart-bar', color: 'red' },
+              { title: 'Findings Tracker', desc: 'Open findings and aging', icon: 'exclamation', color: 'orange' },
+              { title: 'Regulatory Compliance', desc: 'SR 11-7, BCBS 239 status', icon: 'document', color: 'purple' },
+              { title: 'Executive Summary', desc: 'High-level KPIs', icon: 'home', color: 'blue' },
+            ].map(r => `
+              <div class="p-4 border rounded-lg hover:border-${r.color}-300 hover:bg-gray-50 cursor-pointer transition-colors" onclick="showToast('Generating ${r.title}...', 'info')">
+                <div class="flex items-center gap-3 mb-2">
+                  <svg class="w-6 h-6 text-${r.color}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons[r.icon]}</svg>
+                  <span class="font-medium text-gray-900">${r.title}</span>
+                </div>
+                <p class="text-sm text-gray-500">${r.desc}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      // Render Charts
+      setTimeout(() => {
+        const pieCtx = document.getElementById('pieChart');
+        if (pieCtx) {
+          new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+              labels: ['In Production', 'In Validation', 'Development', 'Pending', 'Retired'],
+              datasets: [{
+                data: [38, 26, 13, 17, 6],
+                backgroundColor: ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#6B7280']
+              }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+          });
+        }
+
+        const lineCtx = document.getElementById('lineChart');
+        if (lineCtx) {
+          new Chart(lineCtx, {
+            type: 'line',
+            data: {
+              labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+              datasets: [
+                { label: 'Opened', data: [12, 19, 8, 15, 12, 9], borderColor: '#EF4444', tension: 0.3 },
+                { label: 'Closed', data: [8, 15, 12, 10, 14, 11], borderColor: '#10B981', tension: 0.3 }
+              ]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+          });
+        }
+      }, 100);
+    }
+
+    // Profile Page
+    function renderProfile(container) {
+      container.innerHTML = `
+        <div class="flex gap-6">
+          <div class="w-48 space-y-1">
+            <button class="sidebar-link active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left" onclick="setProfileTab(this, 'profile')">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icons.users}</svg>
+              Profile
+            </button>
+            <button class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-gray-600" onclick="setProfileTab(this, 'security')">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              Security
+            </button>
+            <button class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-gray-600" onclick="setProfileTab(this, 'notifications')">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              Notifications
+            </button>
+          </div>
+          <div class="flex-1 card p-6" id="profileContent">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Profile Information</h2>
+            <form class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">First Name</label><input type="text" class="input" value="${currentUser?.name.split(' ')[0] || 'John'}"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label><input type="text" class="input" value="${currentUser?.name.split(' ')[1] || 'Doe'}"></div>
+              </div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" class="input" value="${currentUser?.email || 'john@example.com'}" disabled></div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1">Department</label><input type="text" class="input" value="Risk Management"></div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1">Title</label><input type="text" class="input" value="Senior Risk Analyst"></div>
+              <button type="button" class="btn btn-primary" onclick="showToast('Profile updated!', 'success')">Save Changes</button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    // Helper Functions
+    function getStatusColor(status) {
+      const colors = {
+        IN_PRODUCTION: 'bg-green-100 text-green-800',
+        APPROVED: 'bg-green-100 text-green-800',
+        IN_VALIDATION: 'bg-blue-100 text-blue-800',
+        IN_PROGRESS: 'bg-blue-100 text-blue-800',
+        PENDING_VALIDATION: 'bg-yellow-100 text-yellow-800',
+        PENDING_REVIEW: 'bg-yellow-100 text-yellow-800',
+        PENDING: 'bg-yellow-100 text-yellow-800',
+        UNDER_DEVELOPMENT: 'bg-purple-100 text-purple-800',
+        NOT_STARTED: 'bg-gray-100 text-gray-800',
+        OPEN: 'bg-red-100 text-red-800',
+        REMEDIATED: 'bg-green-100 text-green-800',
+        CLOSED: 'bg-gray-100 text-gray-800',
+      };
+      return colors[status] || 'bg-gray-100 text-gray-800';
+    }
+
+    function getTierColor(tier) {
+      const colors = {
+        TIER_1_CRITICAL: 'bg-red-100 text-red-800',
+        TIER_2_HIGH: 'bg-orange-100 text-orange-800',
+        TIER_3_MEDIUM: 'bg-yellow-100 text-yellow-800',
+        TIER_4_LOW: 'bg-green-100 text-green-800',
+      };
+      return colors[tier] || 'bg-gray-100 text-gray-800';
+    }
+
+    function getSeverityColor(severity) {
+      const colors = {
+        CRITICAL: 'bg-red-100 text-red-800',
+        HIGH: 'bg-orange-100 text-orange-800',
+        MEDIUM: 'bg-yellow-100 text-yellow-800',
+        LOW: 'bg-green-100 text-green-800',
+      };
+      return colors[severity] || 'bg-gray-100 text-gray-800';
+    }
+
+    function getHeatmapScore(impact, likelihood) {
+      const impactScore = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+      const likelihoodScore = { 'Very Likely': 4, 'Likely': 3, 'Possible': 2, 'Unlikely': 1 };
+      return impactScore[impact] * likelihoodScore[likelihood];
+    }
+
+    function getHeatmapColor(score) {
+      if (score >= 12) return 'bg-red-500 hover:bg-red-600';
+      if (score >= 8) return 'bg-orange-500 hover:bg-orange-600';
+      if (score >= 4) return 'bg-yellow-500 hover:bg-yellow-600';
+      return 'bg-green-500 hover:bg-green-600';
+    }
+
+    function isOverdue(date) {
+      return new Date(date) < new Date();
+    }
+
+    // Interactive Functions
+    function showModelDetail(id) {
+      const model = sampleModels.find(m => m.id === id);
+      if (!model) return;
+
+      showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-xl font-bold text-gray-900">${model.name}</h2>
+              <p class="text-gray-500">${model.modelId}</p>
+            </div>
+            <span class="badge ${getStatusColor(model.status)}">${model.status.replace(/_/g, ' ')}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div><span class="text-sm text-gray-500">Type</span><p class="font-medium">${model.type.replace(/_/g, ' ')}</p></div>
+            <div><span class="text-sm text-gray-500">Tier</span><p class="font-medium">${model.tier.replace('TIER_', 'Tier ').replace('_', ' ')}</p></div>
+            <div><span class="text-sm text-gray-500">Owner</span><p class="font-medium">${model.owner}</p></div>
+            <div><span class="text-sm text-gray-500">Business Unit</span><p class="font-medium">${model.businessUnit}</p></div>
+            <div><span class="text-sm text-gray-500">Open Findings</span><p class="font-medium">${model.findings}</p></div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary flex-1" onclick="hideModal(); showToast('Opening model editor...', 'info')">Edit Model</button>
+            <button class="btn btn-secondary flex-1" onclick="hideModal()">Close</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function showFindingDetail(id) {
+      const finding = sampleFindings.find(f => f.id === id);
+      if (!finding) return;
+
+      showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-xl font-bold text-gray-900">${finding.findingId}</h2>
+              <p class="text-gray-700 mt-1">${finding.title}</p>
+            </div>
+            <span class="badge ${getSeverityColor(finding.severity)}">${finding.severity}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div><span class="text-sm text-gray-500">Model</span><p class="font-medium">${finding.model}</p></div>
+            <div><span class="text-sm text-gray-500">Status</span><p class="font-medium">${finding.status}</p></div>
+            <div><span class="text-sm text-gray-500">Due Date</span><p class="font-medium ${isOverdue(finding.dueDate) ? 'text-red-600' : ''}">${finding.dueDate}</p></div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary flex-1" onclick="hideModal(); showToast('Marking as in progress...', 'success')">Start Remediation</button>
+            <button class="btn btn-secondary flex-1" onclick="hideModal()">Close</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function showValidationDetail(id) {
+      const val = sampleValidations.find(v => v.id === id);
+      if (!val) return;
+
+      showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-xl font-bold text-gray-900">${val.validationId}</h2>
+              <p class="text-gray-500">${val.model}</p>
+            </div>
+            <span class="badge ${getStatusColor(val.status)}">${val.status.replace(/_/g, ' ')}</span>
+          </div>
+          <div class="mb-4">
+            <div class="flex justify-between text-sm mb-1">
+              <span class="text-gray-500">Progress</span>
+              <span class="font-medium">${val.progress}%</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" style="width: ${val.progress}%"></div></div>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div><span class="text-sm text-gray-500">Type</span><p class="font-medium">${val.type.replace(/_/g, ' ')}</p></div>
+            <div><span class="text-sm text-gray-500">Validator</span><p class="font-medium">${val.validator}</p></div>
+            <div><span class="text-sm text-gray-500">Due Date</span><p class="font-medium">${val.dueDate}</p></div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary flex-1" onclick="hideModal(); showToast('Opening validation...', 'info')">Continue Validation</button>
+            <button class="btn btn-secondary flex-1" onclick="hideModal()">Close</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function showWorkflowDetail(id) {
+      showToast('Opening workflow ' + id + '...', 'info');
+    }
+
+    function showNewModelModal() {
+      showModal(`
+        <div class="p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">Register New Model</h2>
+          <form class="space-y-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Model Name *</label><input type="text" class="input" placeholder="Enter model name"></div>
+            <div class="grid grid-cols-2 gap-4">
+              <div><label class="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                <select class="input">
+                  <option>Credit Risk</option>
+                  <option>Market Risk</option>
+                  <option>Fraud Detection</option>
+                  <option>AML/KYC</option>
+                </select>
+              </div>
+              <div><label class="block text-sm font-medium text-gray-700 mb-1">Tier *</label>
+                <select class="input">
+                  <option>Tier 1 - Critical</option>
+                  <option>Tier 2 - High</option>
+                  <option>Tier 3 - Medium</option>
+                  <option>Tier 4 - Low</option>
+                </select>
+              </div>
+            </div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Business Unit *</label><input type="text" class="input" placeholder="e.g., Risk Management"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Description *</label><textarea class="input" rows="3" placeholder="Describe the model..."></textarea></div>
+            <div class="flex gap-2">
+              <button type="button" class="btn btn-primary flex-1" onclick="hideModal(); showToast('Model registered successfully!', 'success')">Register Model</button>
+              <button type="button" class="btn btn-secondary flex-1" onclick="hideModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      `);
+    }
+
+    function showHeatmapCell(impact, likelihood, count) {
+      document.getElementById('heatmapDetails').innerHTML = `
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">${impact} Impact / ${likelihood}</h3>
+        <p class="text-2xl font-bold text-indigo-600 mb-4">${count} models</p>
+        ${count > 0 ? `
+          <div class="space-y-2">
+            ${sampleModels.slice(0, Math.min(count, 3)).map(m => `
+              <div class="p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100" onclick="showModelDetail(${m.id})">
+                <p class="font-medium text-gray-900 text-sm">${m.name}</p>
+                <p class="text-xs text-gray-500">${m.modelId}</p>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<p class="text-gray-500 text-sm">No models in this category</p>'}
+      `;
+    }
+
+    function approveWorkflow(id) {
+      showToast('Workflow ' + id + ' approved!', 'success');
+    }
+
+    function rejectWorkflow(id) {
+      showToast('Workflow ' + id + ' rejected.', 'error');
+    }
+
+    function updateTaskStatus(taskId, status) {
+      showToast('Task ' + taskId + ' updated to ' + status.replace(/_/g, ' '), 'success');
+    }
+
+    function filterModels(query) {
+      const filtered = sampleModels.filter(m =>
+        m.name.toLowerCase().includes(query.toLowerCase()) ||
+        m.modelId.toLowerCase().includes(query.toLowerCase())
+      );
+      document.getElementById('modelsTableBody').innerHTML = renderModelsTable(filtered);
+    }
+
+    function filterByStatus(status) {
+      const filtered = status ? sampleModels.filter(m => m.status === status) : sampleModels;
+      document.getElementById('modelsTableBody').innerHTML = renderModelsTable(filtered);
+    }
+
+    function setProfileTab(btn, tab) {
+      document.querySelectorAll('.sidebar-link').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const content = document.getElementById('profileContent');
+      if (tab === 'security') {
+        content.innerHTML = `
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
+          <form class="space-y-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label><input type="password" class="input"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">New Password</label><input type="password" class="input"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label><input type="password" class="input"></div>
+            <button type="button" class="btn btn-primary" onclick="showToast('Password changed!', 'success')">Update Password</button>
+          </form>
+        `;
+      } else if (tab === 'notifications') {
+        content.innerHTML = `
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h2>
+          <div class="space-y-4">
+            ${['Task Assignments', 'Validation Due', 'Finding Created', 'Workflow Updates'].map(n => `
+              <div class="flex items-center justify-between py-2">
+                <div><p class="font-medium text-gray-900">${n}</p><p class="text-sm text-gray-500">Receive email notifications</p></div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" class="sr-only peer" checked>
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        renderProfile(document.getElementById('pageContent'));
+      }
+    }
+
+    // UI Helpers
+    function toggleDropdown(btn) {
+      const menu = btn.nextElementSibling;
+      menu.classList.toggle('show');
+      document.addEventListener('click', function closeDropdown(e) {
+        if (!btn.contains(e.target)) {
+          menu.classList.remove('show');
+          document.removeEventListener('click', closeDropdown);
+        }
+      });
+    }
+
+    function showNotifications() {
+      showModal(`
+        <div class="p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">Notifications</h2>
+          <div class="space-y-3">
+            ${[
+              { title: 'Validation Due Tomorrow', desc: 'VAL-2024-001 is due tomorrow', time: '1 hour ago', unread: true },
+              { title: 'New Finding Created', desc: 'Critical finding added to Market VaR Model', time: '2 hours ago', unread: true },
+              { title: 'Workflow Approved', desc: 'WF-001 has been approved', time: '3 hours ago', unread: false },
+              { title: 'Task Assigned', desc: 'Review model documentation assigned to you', time: '1 day ago', unread: false },
+            ].map(n => `
+              <div class="p-3 ${n.unread ? 'bg-indigo-50' : 'bg-gray-50'} rounded-lg">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <p class="font-medium text-gray-900">${n.title}</p>
+                    <p class="text-sm text-gray-500">${n.desc}</p>
+                  </div>
+                  <span class="text-xs text-gray-400">${n.time}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <button class="btn btn-secondary w-full mt-4" onclick="hideModal()">Close</button>
+        </div>
+      `);
+    }
+
+    function showModal(content) {
+      document.getElementById('modalContainer').innerHTML = `
+        <div class="modal-overlay" onclick="if(event.target === this) hideModal()">
+          <div class="modal slide-in">${content}</div>
+        </div>
+      `;
+    }
+
+    function hideModal() {
+      document.getElementById('modalContainer').innerHTML = '';
+    }
+
+    function showToast(message, type = 'info') {
+      const colors = { success: '#10B981', error: '#EF4444', info: '#3B82F6' };
+      const toast = document.createElement('div');
+      toast.className = 'toast slide-in';
+      toast.style.borderLeft = `4px solid ${colors[type]}`;
+      toast.textContent = message;
+      document.getElementById('toastContainer').appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function logout() {
+      currentUser = null;
+      document.getElementById('mainApp').classList.add('hidden');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      showToast('Logged out successfully', 'info');
+    }
+  </script>
+</body>
+</html>
