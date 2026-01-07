@@ -7,6 +7,955 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  ADMIN
+  MODEL_DEVELOPER
+  MODEL_VALIDATOR
+  RISK_MANAGER
+  COMPLIANCE_OFFICER
+  EXECUTIVE
+  AUDITOR
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_APPROVAL
+}
+
+model User {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String      @unique
+  passwordHash      String      @map("password_hash")
+  firstName         String      @map("first_name")
+  lastName          String      @map("last_name")
+  role              UserRole    @default(VIEWER)
+  status            UserStatus  @default(PENDING_APPROVAL)
+  department        String?
+  title             String?
+  phone             String?
+  avatar            String?
+  lastLoginAt       DateTime?   @map("last_login_at")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil       DateTime?   @map("locked_until")
+  mfaEnabled        Boolean     @default(false) @map("mfa_enabled")
+  mfaSecret         String?     @map("mfa_secret")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  modelsOwned       Model[]     @relation("ModelOwner")
+  modelsValidated   ModelValidation[] @relation("Validator")
+  modelsDeveloped   Model[]     @relation("ModelDeveloper")
+  reviews           ModelReview[]
+  comments          Comment[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  approvals         WorkflowApproval[]
+  tasks             Task[]      @relation("TaskAssignee")
+  tasksCreated      Task[]      @relation("TaskCreator")
+  documents         Document[]
+  riskAssessments   RiskAssessment[] @relation("AssessedBy")
+  sessions          Session[]
+  apiKeys           ApiKey[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model Session {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token       String   @unique
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model ApiKey {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String   @unique @map("key_hash")
+  lastUsedAt  DateTime? @map("last_used_at")
+  expiresAt   DateTime? @map("expires_at")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ============================================
+// MODEL INVENTORY
+// ============================================
+
+enum ModelStatus {
+  DRAFT
+  UNDER_DEVELOPMENT
+  PENDING_VALIDATION
+  IN_VALIDATION
+  VALIDATION_COMPLETE
+  PENDING_APPROVAL
+  APPROVED
+  IN_PRODUCTION
+  DEPRECATED
+  RETIRED
+  REJECTED
+}
+
+enum ModelTier {
+  TIER_1_CRITICAL
+  TIER_2_HIGH
+  TIER_3_MEDIUM
+  TIER_4_LOW
+}
+
+enum ModelType {
+  CREDIT_RISK
+  MARKET_RISK
+  OPERATIONAL_RISK
+  FRAUD_DETECTION
+  AML_KYC
+  PRICING
+  VALUATION
+  STRESS_TESTING
+  CAPITAL_CALCULATION
+  FORECASTING
+  CLASSIFICATION
+  REGRESSION
+  NLP
+  COMPUTER_VISION
+  RECOMMENDATION
+  OTHER
+}
+
+model Model {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modelId               String        @unique @map("model_id") // Human-readable ID like MDL-2024-001
+  name                  String
+  description           String?
+  version               String        @default("1.0.0")
+  status                ModelStatus   @default(DRAFT)
+  tier                  ModelTier     @default(TIER_3_MEDIUM)
+  type                  ModelType
+
+  // Ownership
+  ownerId               String        @map("owner_id") @db.Uuid
+  owner                 User          @relation("ModelOwner", fields: [ownerId], references: [id])
+  developerId           String?       @map("developer_id") @db.Uuid
+  developer             User?         @relation("ModelDeveloper", fields: [developerId], references: [id])
+  businessUnit          String        @map("business_unit")
+
+  // Technical Details
+  algorithm             String?
+  programmingLanguage   String?       @map("programming_language")
+  framework             String?
+  inputVariables        Json?         @map("input_variables")
+  outputVariables       Json?         @map("output_variables")
+  dependencies          Json?
+
+  // Business Context
+  businessPurpose       String?       @map("business_purpose")
+  intendedUse           String?       @map("intended_use")
+  limitations           String?
+  assumptions           String?
+
+  // Risk & Materiality
+  materialityScore      Decimal?      @map("materiality_score") @db.Decimal(5,2)
+  annualRevenue         Decimal?      @map("annual_revenue") @db.Decimal(18,2)
+  portfolioExposure     Decimal?      @map("portfolio_exposure") @db.Decimal(18,2)
+
+  // Dates
+  developmentStartDate  DateTime?     @map("development_start_date")
+  productionDate        DateTime?     @map("production_date")
+  lastValidationDate    DateTime?     @map("last_validation_date")
+  nextValidationDate    DateTime?     @map("next_validation_date")
+  retirementDate        DateTime?     @map("retirement_date")
+
+  // Metadata
+  tags                  String[]
+  externalReferences    Json?         @map("external_references")
+
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  versions              ModelVersion[]
+  validations           ModelValidation[]
+  riskAssessments       RiskAssessment[]
+  documents             Document[]
+  reviews               ModelReview[]
+  findings              Finding[]
+  workflows             Workflow[]
+  tasks                 Task[]
+  comments              Comment[]
+  performanceMetrics    PerformanceMetric[]
+  changes               ModelChangeLog[]
+  attestations          Attestation[]
+
+  @@index([modelId])
+  @@index([status])
+  @@index([tier])
+  @@index([type])
+  @@index([ownerId])
+  @@index([businessUnit])
+  @@map("models")
+}
+
+model ModelVersion {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modelId         String    @map("model_id") @db.Uuid
+  model           Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  version         String
+  changeDescription String? @map("change_description")
+  releaseNotes    String?   @map("release_notes")
+  artifactUrl     String?   @map("artifact_url")
+  checksum        String?
+  isActive        Boolean   @default(false) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  createdBy       String    @map("created_by") @db.Uuid
+
+  @@unique([modelId, version])
+  @@index([modelId])
+  @@map("model_versions")
+}
+
+model ModelChangeLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modelId     String   @map("model_id") @db.Uuid
+  model       Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  changeType  String   @map("change_type")
+  fieldName   String?  @map("field_name")
+  oldValue    String?  @map("old_value")
+  newValue    String?  @map("new_value")
+  changedBy   String   @map("changed_by") @db.Uuid
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([modelId])
+  @@index([createdAt])
+  @@map("model_change_logs")
+}
+
+// ============================================
+// MODEL VALIDATION
+// ============================================
+
+enum ValidationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PENDING_REVIEW
+  APPROVED
+  CONDITIONALLY_APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum ValidationScope {
+  FULL_VALIDATION
+  TARGETED_VALIDATION
+  ANNUAL_REVIEW
+  CHANGE_VALIDATION
+  ONGOING_MONITORING
+}
+
+model ModelValidation {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  validationId        String           @unique @map("validation_id") // VAL-2024-001
+  modelId             String           @map("model_id") @db.Uuid
+  model               Model            @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  validatorId         String           @map("validator_id") @db.Uuid
+  validator           User             @relation("Validator", fields: [validatorId], references: [id])
+
+  scope               ValidationScope
+  status              ValidationStatus @default(NOT_STARTED)
+
+  // Validation Details
+  conceptualSoundness String?         @map("conceptual_soundness")
+  dataQuality         String?         @map("data_quality")
+  performanceAnalysis String?         @map("performance_analysis")
+  implementationReview String?        @map("implementation_review")
+  outcomeAnalysis     String?         @map("outcome_analysis")
+
+  // Scores
+  overallScore        Decimal?        @map("overall_score") @db.Decimal(5,2)
+  conceptualScore     Decimal?        @map("conceptual_score") @db.Decimal(5,2)
+  dataScore           Decimal?        @map("data_score") @db.Decimal(5,2)
+  performanceScore    Decimal?        @map("performance_score") @db.Decimal(5,2)
+  implementationScore Decimal?        @map("implementation_score") @db.Decimal(5,2)
+
+  // Dates
+  plannedStartDate    DateTime?       @map("planned_start_date")
+  plannedEndDate      DateTime?       @map("planned_end_date")
+  actualStartDate     DateTime?       @map("actual_start_date")
+  actualEndDate       DateTime?       @map("actual_end_date")
+  validUntil          DateTime?       @map("valid_until")
+
+  // Conclusions
+  conclusion          String?
+  recommendations     String?
+  conditions          String?
+
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  findings            Finding[]
+  documents           Document[]      @relation("ValidationDocuments")
+  testResults         TestResult[]
+
+  @@index([modelId])
+  @@index([validatorId])
+  @@index([status])
+  @@map("model_validations")
+}
+
+model TestResult {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  validationId    String          @map("validation_id") @db.Uuid
+  validation      ModelValidation @relation(fields: [validationId], references: [id], onDelete: Cascade)
+  testName        String          @map("test_name")
+  testCategory    String          @map("test_category")
+  description     String?
+  methodology     String?
+  expectedResult  String?         @map("expected_result")
+  actualResult    String?         @map("actual_result")
+  passed          Boolean?
+  score           Decimal?        @db.Decimal(5,2)
+  evidence        Json?
+  notes           String?
+  executedAt      DateTime?       @map("executed_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  @@index([validationId])
+  @@map("test_results")
+}
+
+// ============================================
+// RISK ASSESSMENT
+// ============================================
+
+enum RiskLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  MINIMAL
+}
+
+model RiskAssessment {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId        String      @unique @map("assessment_id") // RISK-2024-001
+  modelId             String      @map("model_id") @db.Uuid
+  model               Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  assessedById        String      @map("assessed_by_id") @db.Uuid
+  assessedBy          User        @relation("AssessedBy", fields: [assessedById], references: [id])
+
+  // Risk Dimensions
+  inherentRisk        RiskLevel   @map("inherent_risk")
+  controlEffectiveness Decimal?   @map("control_effectiveness") @db.Decimal(5,2)
+  residualRisk        RiskLevel   @map("residual_risk")
+
+  // Risk Components
+  modelRisk           RiskLevel   @map("model_risk")
+  dataRisk            RiskLevel   @map("data_risk")
+  operationalRisk     RiskLevel   @map("operational_risk")
+  regulatoryRisk      RiskLevel   @map("regulatory_risk")
+  reputationalRisk    RiskLevel   @map("reputational_risk")
+
+  // Quantitative Measures
+  potentialLoss       Decimal?    @map("potential_loss") @db.Decimal(18,2)
+  probabilityOfLoss   Decimal?    @map("probability_of_loss") @db.Decimal(5,4)
+  expectedLoss        Decimal?    @map("expected_loss") @db.Decimal(18,2)
+
+  // Controls
+  controls            Json?
+  mitigatingFactors   String?     @map("mitigating_factors")
+
+  // Assessment
+  methodology         String?
+  assumptions         String?
+  limitations         String?
+  conclusion          String?
+  recommendations     String?
+
+  assessmentDate      DateTime    @map("assessment_date")
+  nextAssessmentDate  DateTime?   @map("next_assessment_date")
+
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  riskFactors         RiskFactor[]
+
+  @@index([modelId])
+  @@index([assessedById])
+  @@index([residualRisk])
+  @@map("risk_assessments")
+}
+
+model RiskFactor {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId    String          @map("assessment_id") @db.Uuid
+  assessment      RiskAssessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  category        String
+  factor          String
+  description     String?
+  likelihood      RiskLevel
+  impact          RiskLevel
+  overallRisk     RiskLevel       @map("overall_risk")
+  mitigatingControls String?      @map("mitigating_controls")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  @@index([assessmentId])
+  @@map("risk_factors")
+}
+
+// ============================================
+// FINDINGS & ISSUES
+// ============================================
+
+enum FindingSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFORMATIONAL
+}
+
+enum FindingStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_VERIFICATION
+  REMEDIATED
+  ACCEPTED
+  CLOSED
+  OVERDUE
+}
+
+model Finding {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  findingId         String          @unique @map("finding_id") // FND-2024-001
+  modelId           String          @map("model_id") @db.Uuid
+  model             Model           @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  validationId      String?         @map("validation_id") @db.Uuid
+  validation        ModelValidation? @relation(fields: [validationId], references: [id])
+
+  title             String
+  description       String
+  severity          FindingSeverity
+  status            FindingStatus   @default(OPEN)
+  category          String
+
+  // Root Cause
+  rootCause         String?         @map("root_cause")
+  impact            String?
+
+  // Remediation
+  remediationPlan   String?         @map("remediation_plan")
+  assignedToId      String?         @map("assigned_to_id") @db.Uuid
+  targetDate        DateTime?       @map("target_date")
+  actualResolutionDate DateTime?    @map("actual_resolution_date")
+
+  // Management Response
+  managementResponse String?        @map("management_response")
+  acceptanceRationale String?       @map("acceptance_rationale")
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  comments          Comment[]
+  documents         Document[]      @relation("FindingDocuments")
+
+  @@index([modelId])
+  @@index([validationId])
+  @@index([status])
+  @@index([severity])
+  @@map("findings")
+}
+
+// ============================================
+// DOCUMENTS & ATTACHMENTS
+// ============================================
+
+enum DocumentType {
+  MODEL_DOCUMENTATION
+  VALIDATION_REPORT
+  RISK_ASSESSMENT
+  TECHNICAL_SPECIFICATION
+  USER_GUIDE
+  TEST_RESULTS
+  APPROVAL_MEMO
+  POLICY
+  PROCEDURE
+  REGULATORY_FILING
+  AUDIT_REPORT
+  MEETING_MINUTES
+  OTHER
+}
+
+model Document {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId      String        @unique @map("document_id") // DOC-2024-001
+  name            String
+  description     String?
+  type            DocumentType
+
+  // Storage
+  fileUrl         String        @map("file_url")
+  fileName        String        @map("file_name")
+  fileSize        Int           @map("file_size")
+  mimeType        String        @map("mime_type")
+  checksum        String?
+
+  // Versioning
+  version         String        @default("1.0")
+  isLatest        Boolean       @default(true) @map("is_latest")
+  parentId        String?       @map("parent_id") @db.Uuid
+
+  // Ownership
+  uploadedById    String        @map("uploaded_by_id") @db.Uuid
+  uploadedBy      User          @relation(fields: [uploadedById], references: [id])
+
+  // Relations (optional)
+  modelId         String?       @map("model_id") @db.Uuid
+  model           Model?        @relation(fields: [modelId], references: [id])
+  validationId    String?       @map("validation_id") @db.Uuid
+  validation      ModelValidation? @relation("ValidationDocuments", fields: [validationId], references: [id])
+  findingId       String?       @map("finding_id") @db.Uuid
+  finding         Finding?      @relation("FindingDocuments", fields: [findingId], references: [id])
+
+  // Metadata
+  tags            String[]
+  isConfidential  Boolean       @default(false) @map("is_confidential")
+  retentionDate   DateTime?     @map("retention_date")
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@index([modelId])
+  @@index([validationId])
+  @@index([type])
+  @@map("documents")
+}
+
+// ============================================
+// WORKFLOW & APPROVALS
+// ============================================
+
+enum WorkflowType {
+  MODEL_APPROVAL
+  VALIDATION_APPROVAL
+  CHANGE_APPROVAL
+  EXCEPTION_APPROVAL
+  RETIREMENT_APPROVAL
+  FINDING_REMEDIATION
+}
+
+enum WorkflowStatus {
+  DRAFT
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+model Workflow {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId      String          @unique @map("workflow_id") // WF-2024-001
+  type            WorkflowType
+  status          WorkflowStatus  @default(DRAFT)
+
+  // Subject
+  modelId         String?         @map("model_id") @db.Uuid
+  model           Model?          @relation(fields: [modelId], references: [id])
+
+  title           String
+  description     String?
+  priority        Int             @default(3) // 1=Critical, 5=Low
+
+  // Initiator
+  initiatedById   String          @map("initiated_by_id") @db.Uuid
+  initiatedAt     DateTime        @default(now()) @map("initiated_at")
+
+  // Completion
+  completedAt     DateTime?       @map("completed_at")
+  outcome         String?
+
+  // Configuration
+  requiredApprovals Int           @default(1) @map("required_approvals")
+  currentStep     Int             @default(0) @map("current_step")
+  expiresAt       DateTime?       @map("expires_at")
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  approvals       WorkflowApproval[]
+  steps           WorkflowStep[]
+
+  @@index([modelId])
+  @@index([type])
+  @@index([status])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId  String    @map("workflow_id") @db.Uuid
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepOrder   Int       @map("step_order")
+  name        String
+  description String?
+  approverRole UserRole @map("approver_role")
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([workflowId])
+  @@map("workflow_steps")
+}
+
+model WorkflowApproval {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowId  String    @map("workflow_id") @db.Uuid
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  approverId  String    @map("approver_id") @db.Uuid
+  approver    User      @relation(fields: [approverId], references: [id])
+  stepOrder   Int       @map("step_order")
+  decision    String?   // APPROVED, REJECTED, DEFERRED
+  comments    String?
+  decidedAt   DateTime? @map("decided_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([workflowId])
+  @@index([approverId])
+  @@map("workflow_approvals")
+}
+
+// ============================================
+// TASKS & ACTIVITIES
+// ============================================
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model Task {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId        String       @unique @map("task_id") // TSK-2024-001
+  title         String
+  description   String?
+  status        TaskStatus   @default(PENDING)
+  priority      TaskPriority @default(MEDIUM)
+
+  // Assignment
+  assigneeId    String?      @map("assignee_id") @db.Uuid
+  assignee      User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdById   String       @map("created_by_id") @db.Uuid
+  createdBy     User         @relation("TaskCreator", fields: [createdById], references: [id])
+
+  // Relations
+  modelId       String?      @map("model_id") @db.Uuid
+  model         Model?       @relation(fields: [modelId], references: [id])
+
+  // Dates
+  dueDate       DateTime?    @map("due_date")
+  startedAt     DateTime?    @map("started_at")
+  completedAt   DateTime?    @map("completed_at")
+
+  // Metadata
+  category      String?
+  estimatedHours Decimal?    @map("estimated_hours") @db.Decimal(5,1)
+  actualHours   Decimal?     @map("actual_hours") @db.Decimal(5,1)
+
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  comments      Comment[]
+
+  @@index([assigneeId])
+  @@index([modelId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// ============================================
+// COMMENTS & COMMUNICATION
+// ============================================
+
+model Comment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content     String
+  authorId    String   @map("author_id") @db.Uuid
+  author      User     @relation(fields: [authorId], references: [id])
+
+  // Polymorphic relations
+  modelId     String?  @map("model_id") @db.Uuid
+  model       Model?   @relation(fields: [modelId], references: [id])
+  findingId   String?  @map("finding_id") @db.Uuid
+  finding     Finding? @relation(fields: [findingId], references: [id])
+  taskId      String?  @map("task_id") @db.Uuid
+  task        Task?    @relation(fields: [taskId], references: [id])
+  reviewId    String?  @map("review_id") @db.Uuid
+  review      ModelReview? @relation(fields: [reviewId], references: [id])
+
+  // Threading
+  parentId    String?  @map("parent_id") @db.Uuid
+
+  isEdited    Boolean  @default(false) @map("is_edited")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([modelId])
+  @@index([findingId])
+  @@index([taskId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+// ============================================
+// REVIEWS & ATTESTATIONS
+// ============================================
+
+model ModelReview {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId      String   @unique @map("review_id") // REV-2024-001
+  modelId       String   @map("model_id") @db.Uuid
+  model         Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  reviewerId    String   @map("reviewer_id") @db.Uuid
+  reviewer      User     @relation(fields: [reviewerId], references: [id])
+
+  reviewType    String   @map("review_type") // PEER_REVIEW, MANAGER_REVIEW, etc.
+  status        String   // PENDING, IN_PROGRESS, COMPLETED
+
+  overallRating Decimal? @map("overall_rating") @db.Decimal(3,1)
+  summary       String?
+  strengths     String?
+  weaknesses    String?
+  recommendations String?
+
+  reviewDate    DateTime @map("review_date")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  comments      Comment[]
+
+  @@index([modelId])
+  @@index([reviewerId])
+  @@map("model_reviews")
+}
+
+model Attestation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attestationId   String   @unique @map("attestation_id") // ATT-2024-001
+  modelId         String   @map("model_id") @db.Uuid
+  model           Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  attestationType String   @map("attestation_type") // ANNUAL, QUARTERLY, CHANGE
+  statement       String
+  attestedById    String   @map("attested_by_id") @db.Uuid
+  attestedAt      DateTime @map("attested_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  // Digital Signature
+  signatureHash   String?  @map("signature_hash")
+  ipAddress       String?  @map("ip_address")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([modelId])
+  @@map("attestations")
+}
+
+// ============================================
+// PERFORMANCE MONITORING
+// ============================================
+
+model PerformanceMetric {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modelId     String   @map("model_id") @db.Uuid
+  model       Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  metricName  String   @map("metric_name")
+  metricValue Decimal  @map("metric_value") @db.Decimal(18,6)
+  threshold   Decimal? @db.Decimal(18,6)
+  unit        String?
+
+  isBreached  Boolean  @default(false) @map("is_breached")
+  period      String   // DAILY, WEEKLY, MONTHLY, QUARTERLY
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([modelId])
+  @@index([metricName])
+  @@index([periodStart])
+  @@map("performance_metrics")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+enum NotificationType {
+  TASK_ASSIGNED
+  APPROVAL_REQUIRED
+  FINDING_CREATED
+  VALIDATION_DUE
+  MODEL_STATUS_CHANGE
+  COMMENT_ADDED
+  DEADLINE_APPROACHING
+  SYSTEM_ALERT
+}
+
+model Notification {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  title       String
+  message     String
+  linkUrl     String?          @map("link_url")
+  isRead      Boolean          @default(false) @map("is_read")
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// AUDIT LOGGING
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  user        User?    @relation(fields: [userId], references: [id])
+
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, EXPORT, etc.
+  entityType  String   @map("entity_type") // MODEL, VALIDATION, USER, etc.
+  entityId    String?  @map("entity_id")
+
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  requestId   String?  @map("request_id")
+
+  severity    String   @default("INFO") // INFO, WARNING, ERROR, CRITICAL
+  description String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemConfig {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  value       Json
+  description String?
+  isEncrypted Boolean  @default(false) @map("is_encrypted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
+
+// ============================================
+// REGULATORY & COMPLIANCE
+// ============================================
+
+model RegulatoryRequirement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirementId   String   @unique @map("requirement_id") // REG-001
+  regulation      String   // SR 11-7, BCBS 239, IFRS 9, etc.
+  section         String?
+  title           String
+  description     String
+  applicability   String?
+  isActive        Boolean  @default(true) @map("is_active")
+  effectiveDate   DateTime? @map("effective_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("regulatory_requirements")
+}
+
+// ============================================
+// REPORTING
+// ============================================
+
+model Report {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportId      String   @unique @map("report_id") // RPT-2024-001
+  name          String
+  description   String?
+  type          String   // INVENTORY, VALIDATION_STATUS, RISK_SUMMARY, etc.
+  parameters    Json?
+  generatedById String   @map("generated_by_id") @db.Uuid
+  generatedAt   DateTime @default(now()) @map("generated_at")
+  fileUrl       String?  @map("file_url")
+  status        String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([generatedAt])
+  @@map("reports")
+}
+
+// ============================================
+// LEGACY: Research Capture (from existing system)
+// ============================================
+
 model Researcher {
   id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email     String      @unique
