@@ -1,57 +1,153 @@
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-const aws = require('aws-sdk');
-const multer = require('multer');
-const sharp = require('sharp');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 
-const prisma = new PrismaClient();
+const config = require('./config');
+const logger = require('./utils/logger');
+const { auditMiddleware } = require('./middleware/audit');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+
+// Route imports
+const authRoutes = require('./routes/auth');
+const modelRoutes = require('./routes/models');
+const validationRoutes = require('./routes/validations');
+const findingRoutes = require('./routes/findings');
+const riskRoutes = require('./routes/risks');
+const workflowRoutes = require('./routes/workflows');
+const taskRoutes = require('./routes/tasks');
+const userRoutes = require('./routes/users');
+const dashboardRoutes = require('./routes/dashboard');
+
 const app = express();
 
-const s3 = new aws.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_S3_REGION || 'ap-south-1',
-});
+// ============================================
+// SECURITY MIDDLEWARE
+// ============================================
 
-app.use(cors());
+// Helmet - security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+// CORS configuration
+app.use(cors({
+  origin: config.cors.origin,
+  credentials: config.cors.credentials,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.max,
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
+
+// Stricter rate limit for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'Too many login attempts, please try again later.' },
+});
+app.use('/api/auth/login', authLimiter);
+
+// ============================================
+// BODY PARSING & COMPRESSION
+// ============================================
+
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-const upload = multer({ storage: multer.memoryStorage() });
-const JWT_SECRET = process.env.JWT_SECRET;
-
-if (!JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is not set');
-  process.exit(1);
-}
-
 // ============================================
-// MIDDLEWARE: JWT Authentication
+// AUDIT & LOGGING MIDDLEWARE
 // ============================================
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) {
-    return res.status(401).json({ error: 'Missing authentication token' });
-  }
+app.use(auditMiddleware);
 
-  jwt.verify(token, JWT_SECRET, (err, researcher) => {
-    if (err) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-    req.researcher = researcher;
-    next();
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.http(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
   });
-};
+  next();
+});
 
 // ============================================
-// ENDPOINT 1: POST /api/auth/login
+// HEALTH CHECK ENDPOINTS
 // ============================================
-app.post('/api/auth/login', async (req, res) => {
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0',
+    environment: config.nodeEnv,
+  });
+});
+
+app.get('/api/health/ready', async (req, res) => {
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    await prisma.$queryRaw`SELECT 1`;
+    await prisma.$disconnect();
+
+    res.json({
+      status: 'ready',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'not ready',
+      database: 'disconnected',
+      error: error.message,
+    });
+  }
+});
+
+// ============================================
+// API ROUTES
+// ============================================
+
+app.use('/api/auth', authRoutes);
+app.use('/api/models', modelRoutes);
+app.use('/api/validations', validationRoutes);
+app.use('/api/findings', findingRoutes);
+app.use('/api/risks', riskRoutes);
+app.use('/api/workflows', workflowRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
+// ============================================
+// LEGACY ENDPOINTS (for backward compatibility)
+// ============================================
+
+const { PrismaClient } = require('@prisma/client');
+const jwt = require('jsonwebtoken');
+const prisma = new PrismaClient();
+
+// Legacy researcher login
+app.post('/api/legacy/auth/login', async (req, res) => {
   try {
     const { email, apiKey } = req.body;
 
@@ -60,10 +156,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const researcher = await prisma.researcher.findFirst({
-      where: {
-        email: email,
-        apiKey: apiKey,
-      },
+      where: { email, apiKey },
     });
 
     if (!researcher) {
@@ -72,7 +165,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: researcher.id, email: researcher.email, name: researcher.name },
-      JWT_SECRET,
+      config.jwt.secret,
       { expiresIn: '30d' }
     );
 
@@ -81,178 +174,48 @@ app.post('/api/auth/login', async (req, res) => {
       researcher: {
         id: researcher.id,
         email: researcher.email,
-        name: researcher.name
-      }
+        name: researcher.name,
+      },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Legacy login error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ============================================
-// ENDPOINT 2: GET /api/researcher/me
+// ERROR HANDLING
 // ============================================
-app.get('/api/researcher/me', authenticateToken, async (req, res) => {
-  try {
-    const researcher = await prisma.researcher.findUnique({
-      where: { id: req.researcher.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        _count: { select: { captures: true } },
-      },
-    });
 
-    if (!researcher) {
-      return res.status(404).json({ error: 'Researcher not found' });
-    }
-
-    res.json({
-      id: researcher.id,
-      email: researcher.email,
-      name: researcher.name,
-      capture_count: researcher._count.captures,
-    });
-  } catch (error) {
-    console.error('Get researcher error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // ============================================
-// ENDPOINT 3: POST /api/screenshots (Upload)
+// GRACEFUL SHUTDOWN
 // ============================================
-app.post('/api/screenshots', authenticateToken, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file provided' });
-    }
 
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ error: 'Only PNG and JPEG images allowed' });
-    }
+const gracefulShutdown = async (signal) => {
+  logger.info(`${signal} received. Shutting down gracefully...`);
 
-    let imageBuffer = req.file.buffer;
-    let compressed = false;
+  // Close database connection
+  await prisma.$disconnect();
 
-    if (req.file.size > 500000) {
-      imageBuffer = await sharp(req.file.buffer)
-        .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 75 })
-        .toBuffer();
-      compressed = true;
-    }
+  process.exit(0);
+};
 
-    const filename = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.jpg`;
-    const key = `mrm-captures/${filename}`;
-
-    const params = {
-      Bucket: process.env.AWS_S3_BUCKET,
-      Key: key,
-      Body: imageBuffer,
-      ContentType: 'image/jpeg',
-      ACL: 'public-read',
-    };
-
-    const result = await s3.upload(params).promise();
-
-    res.json({
-      url: result.Location,
-      size: imageBuffer.length,
-      compressed: compressed,
-    });
-  } catch (error) {
-    console.error('Screenshot upload error:', error);
-    res.status(500).json({ error: 'Failed to upload screenshot' });
-  }
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // ============================================
-// ENDPOINT 4: POST /api/captures (Save Capture)
+// START SERVER
 // ============================================
-app.post('/api/captures', authenticateToken, async (req, res) => {
-  try {
-    const {
-      prompt,
-      screenshotUrl,
-      notes,
-      sector,
-      theme,
-      findingType,
-      sourceUrl,
-      sourceTabTitle
-    } = req.body;
 
-    if (!prompt) return res.status(400).json({ error: 'Missing required field: prompt' });
-    if (!sector) return res.status(400).json({ error: 'Missing required field: sector' });
-    if (!theme) return res.status(400).json({ error: 'Missing required field: theme' });
-    if (!findingType) return res.status(400).json({ error: 'Missing required field: findingType' });
+const PORT = config.port;
 
-    const capture = await prisma.capture.create({
-      data: {
-        researcherId: req.researcher.id,
-        prompt,
-        screenshotUrl: screenshotUrl || null,
-        notes: notes || null,
-        sector,
-        theme,
-        findingType,
-        sourceUrl: sourceUrl || null,
-        sourceTabTitle: sourceTabTitle || null,
-      },
-    });
-
-    res.status(201).json({
-      id: capture.id,
-      researcher_id: capture.researcherId,
-      created_at: capture.createdAt,
-      prompt: capture.prompt,
-      status: 'saved',
-    });
-  } catch (error) {
-    console.error('Create capture error:', error);
-    res.status(500).json({ error: 'Failed to save capture' });
-  }
-});
-
-// ============================================
-// ENDPOINT 5: GET /api/captures
-// ============================================
-app.get('/api/captures', authenticateToken, async (req, res) => {
-  try {
-    const captures = await prisma.capture.findMany({
-      where: { researcherId: req.researcher.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-
-    res.json(captures);
-  } catch (error) {
-    console.error('Get captures error:', error);
-    res.status(500).json({ error: 'Failed to fetch captures' });
-  }
-});
-
-// ============================================
-// HEALTH CHECK
-// ============================================
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
-});
-
-// ============================================
-// ERROR HANDLER
-// ============================================
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-const PORT = process.env.API_PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 MRM Capture API running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`🚀 MRM Platform API running on port ${PORT}`);
+  logger.info(`📊 Environment: ${config.nodeEnv}`);
+  logger.info(`🔐 Security: Helmet, CORS, Rate Limiting enabled`);
 });
+
+module.exports = app;
